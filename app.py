@@ -33,10 +33,8 @@ close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, 15
 top_cutoff = 1 - (close_percentile / 100)
 bottom_cutoff = close_percentile / 100
 
-# 3. High-Velocity High-Liquidity Ticker List (Large, Mid, & Small Caps included)
-# Hardcoded to bypass the NiftyIndices server block and guarantee instant execution
+# 3. High-Velocity High-Liquidity Ticker List
 TICKERS_POOL = [
-    # High Velocity Mid & Small Caps
     "ZOMATO.NS", "SUZLON.NS", "JIOFIN.NS", "IREDA.NS", "RVNL.NS", "IRFC.NS", 
     "BHEL.NS", "GMRINFRA.NS", "IDEA.NS", "YESBANK.NS", "PNB.NS", "HUDCO.NS",
     "NBCC.NS", "SJVN.NS", "NHPC.NS", "OIL.NS", "HAL.NS", "BEL.NS", "TATAPOWER.NS",
@@ -49,21 +47,27 @@ TICKERS_POOL = [
     "DRREDDY.NS", "APOLLOHOSP.NS", "NESTLEIND.NS", "EICHERMOT.NS", "BRITANNIA.NS",
     "HEROMOTOCO.NS", "BAJAJ-AUTO.NS", "INDUSINDBK.NS", "DIVISLAB.NS", "LTIM.NS",
     "BAJAJFINSV.NS", "SBILIFE.NS", "HINDUNILVR.NS", "TATACONSUM.NS", "ADANIPORTS.NS",
-    # Additional Highly Active Midcaps
     "LICI.NS", "PAYTM.NS", "NYKAA.NS", "UNIONBANK.NS", "IOB.NS", "CENTRALBK.NS",
     "ZENTEC.NS", "TATAELXSI.NS", "KPITTECH.NS", "COFORGE.NS", "PERSISTENT.NS",
     "MPHASIS.NS", "DIXON.NS", "POLYCAB.NS", "KEI.NS", "IRCTC.NS", "CONCOR.NS",
-    "AMBUJACEM", "ACC.NS", "DLF.NS", "GODREJPROP.NS", "OBERREALTY.NS", "SOBHA.NS",
+    "AMBUJACEM.NS", "ACC.NS", "DLF.NS", "GODREJPROP.NS", "OBERREALTY.NS", "SOBHA.NS",
     "PFC.NS", "RECLTD.NS", "GAIL.NS", "SAIL.NS", "NMDC.NS", "NATIONALUM.NS",
-    "VEDL.NS", "HINDCOPPER.NS", "EXIDEIND.NS", "AMARAJABAT.NS", "VOLTAS.NS",
+    "VEDL.NS", "HINDCOPPER.NS", "EXIDEIND.NS", "VOLTAS.NS",
     "BLUESTARCO.NS", "HAVELLS.NS", "CUMMINSIND.NS", "AIAENG.NS", "THERMAX.NS",
     "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BOB.NS", "CANBK.NS", "IDFCFIRSTB.NS",
     "FEDERALBNK.NS", "BANDHANBNK.NS", "AUBANK.NS", "CUB.NS", "KARURVYSYA.NS",
-    "BIOCON.NS", "GLENMARK.NS", "LUPIN.NS", "AUBROPHARMA.NS", "LAURUSLABS.NS",
+    "BIOCON.NS", "GLENMARK.NS", "LUPIN.NS", "AUROPHARMA.NS", "LAURUSLABS.NS",
     "CHAMBLFERT.NS", "GNFC.NS", "GSFC.NS", "COROMANDEL.NS", "DEEPAKNTR.NS",
     "SRF.NS", "TATACHEM.NS", "PIDILITIND.NS", "BALRAMCHIN.NS", "RENUKA.NS",
     "PRAJIND.NS", "MAXHEALTH.NS", "FORTIS.NS", "GLOBALHEALTH.NS", "MEDANTA.NS"
 ]
+
+# Helper function to format numbers securely without crashing if data is corrupt
+def safe_format_vol(val):
+    try:
+        return f"{float(val):.2fx}"
+    except:
+        return str(val)
 
 # 4. High-Speed Bulk Processing Logic
 def run_turbo_scan(tickers):
@@ -71,7 +75,6 @@ def run_turbo_scan(tickers):
     bearish_list = []
     
     with st.spinner("Downloading full market data matrix (takes ~5-10 seconds)..."):
-        # Download data simultaneously in one parallel network batch
         all_data = yf.download(tickers, period="35d", interval="1d", group_by="ticker", threads=True, progress=False)
     
     status_text = st.empty()
@@ -105,7 +108,7 @@ def run_turbo_scan(tickers):
             close_position = (close_val - low_val) / candle_range
             vol_multiplier = vol_val / avg_vol_20
             
-            # Application Logic Threshold Filter Checks
+            # Application Logic Filter Checks
             if vol_multiplier >= vol_threshold:
                 if close_position >= top_cutoff:
                     bullish_list.append({
@@ -125,11 +128,11 @@ def run_turbo_scan(tickers):
 if st.button("🚀 Start High-Speed Market Scan"):
     bullish_df, bearish_df = run_turbo_scan(TICKERS_POOL)
     
-    # Render Output Layout Tables on Mobile Interface
+    # Render Output Layout Tables securely using safe formatter engine
     st.markdown("### 🔥 Bullish Watchlist")
     if not bullish_df.empty:
         bullish_df = bullish_df.sort_values(by="Vol Multi", ascending=False)
-        bullish_df["Vol Multi"] = bullish_df["Vol Multi"].map(lambda x: f"{x:.2fx}")
+        bullish_df["Vol Multi"] = bullish_df["Vol Multi"].apply(safe_format_vol)
         st.dataframe(bullish_df, use_container_width=True, hide_index=True)
     else:
         st.warning("No bullish setups qualified.")
@@ -137,7 +140,7 @@ if st.button("🚀 Start High-Speed Market Scan"):
     st.markdown("### ❄️ Bearish Watchlist")
     if not bearish_df.empty:
         bearish_df = bearish_df.sort_values(by="Vol Multi", ascending=False)
-        bearish_df["Vol Multi"] = bearish_df["Vol Multi"].map(lambda x: f"{x:.2fx}")
+        bearish_df["Vol Multi"] = bearish_df["Vol Multi"].apply(safe_format_vol)
         st.dataframe(bearish_df, use_container_width=True, hide_index=True)
     else:
         st.warning("No bearish setups qualified.")
