@@ -33,6 +33,26 @@ close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, 15
 top_cutoff = 1 - (close_percentile / 100)
 bottom_cutoff = close_percentile / 100
 
+# NEW: Built-in UI Reference Guide for Mobile Users
+with st.expander("📖 Quick Configuration Guide"):
+    st.markdown("""
+    **Match your sliders to the current market regime:**
+    
+    ### 🔵 Setup A: Quiet / Sideways Markets
+    *Use this when Nifty is choppy, rangebound, or consolidating.*
+    * **Volume Surge Multiplier:** `1.2x` to `1.4x`
+    * **Candle Close Proximity:** `20%`
+    * *Objective:* Relaxes parameters slightly to catch isolated midcap momentum breakout moves.
+    
+    ---
+    
+    ### 🔴 Setup B: Trending / High-Velocity Markets
+    *Use this when Nifty/Sectors have strong directional days (>1% move).*
+    * **Volume Surge Multiplier:** `1.8x` to `2.2x`
+    * **Candle Close Proximity:** `10%` to `15%`
+    * *Objective:* Tightens filters to remove overall market noise and extract absolute institutional block-buying leaders.
+    """)
+
 # 3. High-Velocity High-Liquidity Ticker List
 TICKERS_POOL = [
     "ZOMATO.NS", "SUZLON.NS", "JIOFIN.NS", "IREDA.NS", "RVNL.NS", "IRFC.NS", 
@@ -62,10 +82,9 @@ TICKERS_POOL = [
     "PRAJIND.NS", "MAXHEALTH.NS", "FORTIS.NS", "GLOBALHEALTH.NS", "MEDANTA.NS"
 ]
 
-# Helper function to format numbers securely without crashing if data is corrupt
 def safe_format_vol(val):
     try:
-        return f"{float(val):.2fx}"
+        return f"{float(val):.2f}x"
     except:
         return str(val)
 
@@ -108,7 +127,6 @@ def run_turbo_scan(tickers):
             close_position = (close_val - low_val) / candle_range
             vol_multiplier = vol_val / avg_vol_20
             
-            # Application Logic Filter Checks
             if vol_multiplier >= vol_threshold:
                 if close_position >= top_cutoff:
                     bullish_list.append({
@@ -128,7 +146,6 @@ def run_turbo_scan(tickers):
 if st.button("🚀 Start High-Speed Market Scan"):
     bullish_df, bearish_df = run_turbo_scan(TICKERS_POOL)
     
-    # Render Output Layout Tables securely using safe formatter engine
     st.markdown("### 🔥 Bullish Watchlist")
     if not bullish_df.empty:
         bullish_df = bullish_df.sort_values(by="Vol Multi", ascending=False)
