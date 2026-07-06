@@ -29,19 +29,13 @@ st.markdown("""
 st.markdown("<h1>⚡ Auto-Regime Momentum Scanner</h1>", unsafe_allow_html=True)
 st.markdown("<p class='sub'>Filters: Global Sentiment + Vol Surge + Sector + Room + NR7</p>", unsafe_allow_html=True)
 
-
-# 2. NEW: Global Synopsis Fetching Engine
+# 2. Optimized Global Synopsis Fetching Engine
 def fetch_global_synopsis():
     synopsis = {}
     try:
-        # Batch load global benchmarks to maximize network processing speeds
-        global_data = yf.download(["^NSEI", "^GSPC"], period="5d", interval="1d", progress=False)
-        if isinstance(global_data.columns, pd.MultiIndex):
-            global_data.columns = global_data.columns.get_level_values(0)
-            
-        # A. Process Domestic Index / GIFT Alignment Proxy
-        nifty_df = yf.download("^NSEI", period="5d", interval="1d", progress=False)
-        if not nifty_df.empty:
+        # Fetch Nifty index with multi-level indices disabled to keep tracking clean
+        nifty_df = yf.download("^NSEI", period="5d", interval="1d", progress=False, multi_level_index=False)
+        if not nifty_df.empty and len(nifty_df) >= 2:
             last_nifty = nifty_df.iloc[-1]
             nifty_close = float(last_nifty['Close'])
             nifty_prev = float(nifty_df.iloc[-2]['Close'])
@@ -49,9 +43,9 @@ def fetch_global_synopsis():
             nifty_date = nifty_df.index[-1].strftime('%d-%b-%Y')
             synopsis['NIFTY'] = {"val": nifty_close, "pct": nifty_pct, "date": nifty_date}
             
-        # B. Process US Markets (S&P 500 Baseline)
-        sp_df = yf.download("^GSPC", period="5d", interval="1d", progress=False)
-        if not sp_df.empty:
+        # Fetch S&P 500 separately to completely eliminate multi-level alignment bottlenecks
+        sp_df = yf.download("^GSPC", period="5d", interval="1d", progress=False, multi_level_index=False)
+        if not sp_df.empty and len(sp_df) >= 2:
             last_sp = sp_df.iloc[-1]
             sp_close = float(last_sp['Close'])
             sp_prev = float(sp_df.iloc[-2]['Close'])
@@ -60,10 +54,10 @@ def fetch_global_synopsis():
             synopsis['SP500'] = {"val": sp_close, "pct": sp_pct, "date": sp_date}
             
     except Exception as e:
-        st.warning("Global data feed experienced a minor connection latency update.")
+        pass
     return synopsis
 
-# Render Global Synopsis Header Widget
+# Render Global Synopsis Headers on Dashboard Viewport
 global_metrics = fetch_global_synopsis()
 if global_metrics:
     st.markdown("### 🌍 Global Market Synopsis")
@@ -93,14 +87,10 @@ if global_metrics:
             </div>
         """, unsafe_allow_html=True)
 
-
 # 3. Automated Market Regime Detector Engine
 def detect_market_regime():
     try:
-        nifty = yf.download("^NSEI", period="5d", interval="1d", progress=False)
-        if isinstance(nifty.columns, pd.MultiIndex):
-            nifty.columns = nifty.columns.get_level_values(0)
-            
+        nifty = yf.download("^NSEI", period="5d", interval="1d", progress=False, multi_level_index=False)
         last_row = nifty.iloc[-1]
         nifty_open = float(last_row['Open'])
         nifty_close = float(last_row['Close'])
@@ -129,7 +119,7 @@ close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, st
 top_cutoff = 1 - (close_percentile / 100)
 bottom_cutoff = close_percentile / 100
 
-# 5. High-Velocity Ticker List
+# 5. Asset Allocation Configuration Group Pools
 SECTOR_MAP = {
     "BANKING/FIN": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "AXISBANK.NS", "KOTAKBANK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "INDUSINDBK.NS", "PNB.NS", "YESBANK.NS", "IRFC.NS", "PFC.NS", "RECLTD.NS", "BOB.NS", "CANBK.NS", "IDFCFIRSTB.NS", "FEDERALBNK.NS", "BANDHANBNK.NS", "AUBANK.NS"],
     "IT": ["TCS.NS", "INFY.NS", "HCLTECH.NS", "WIPRO.NS", "TECHM.NS", "LTIM.NS", "TATAELXSI.NS", "KPITTECH.NS", "COFORGE.NS", "PERSISTENT.NS", "MPHASIS.NS"],
@@ -146,7 +136,7 @@ def safe_format_vol(val):
     try: return f"{float(val):.2f}x"
     except: return str(val)
 
-# 6. Pipeline Analysis Logic with NR7 Check
+# 6. Pipeline Analysis Logic Engine
 def run_advanced_scan(tickers):
     raw_candidates = []
     sector_performance = {sec: 0 for sec in SECTOR_MAP.keys()}
