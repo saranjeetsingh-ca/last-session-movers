@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+from datetime import datetime
 
 # 1. Mobile UI Layout Configurations
 st.set_page_config(
@@ -19,13 +20,81 @@ st.markdown("""
         font-weight: bold; padding: 14px; border-radius: 8px; font-size: 16px; border: none;
     }
     div.stButton > button:hover { background-color: #059669; color: white; }
+    .global-card {
+        padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 8px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>⚡ Auto-Regime Momentum Scanner</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Filters: Vol Surge + Sector + Room + Volatility Compression (NR7)</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Filters: Global Sentiment + Vol Surge + Sector + Room + NR7</p>", unsafe_allow_html=True)
 
-# 2. Automated Market Regime Detector Engine
+
+# 2. NEW: Global Synopsis Fetching Engine
+def fetch_global_synopsis():
+    synopsis = {}
+    try:
+        # Batch load global benchmarks to maximize network processing speeds
+        global_data = yf.download(["^NSEI", "^GSPC"], period="5d", interval="1d", progress=False)
+        if isinstance(global_data.columns, pd.MultiIndex):
+            global_data.columns = global_data.columns.get_level_values(0)
+            
+        # A. Process Domestic Index / GIFT Alignment Proxy
+        nifty_df = yf.download("^NSEI", period="5d", interval="1d", progress=False)
+        if not nifty_df.empty:
+            last_nifty = nifty_df.iloc[-1]
+            nifty_close = float(last_nifty['Close'])
+            nifty_prev = float(nifty_df.iloc[-2]['Close'])
+            nifty_pct = ((nifty_close - nifty_prev) / nifty_prev) * 100
+            nifty_date = nifty_df.index[-1].strftime('%d-%b-%Y')
+            synopsis['NIFTY'] = {"val": nifty_close, "pct": nifty_pct, "date": nifty_date}
+            
+        # B. Process US Markets (S&P 500 Baseline)
+        sp_df = yf.download("^GSPC", period="5d", interval="1d", progress=False)
+        if not sp_df.empty:
+            last_sp = sp_df.iloc[-1]
+            sp_close = float(last_sp['Close'])
+            sp_prev = float(sp_df.iloc[-2]['Close'])
+            sp_pct = ((sp_close - sp_prev) / sp_prev) * 100
+            sp_date = sp_df.index[-1].strftime('%d-%b-%Y')
+            synopsis['SP500'] = {"val": sp_close, "pct": sp_pct, "date": sp_date}
+            
+    except Exception as e:
+        st.warning("Global data feed experienced a minor connection latency update.")
+    return synopsis
+
+# Render Global Synopsis Header Widget
+global_metrics = fetch_global_synopsis()
+if global_metrics:
+    st.markdown("### 🌍 Global Market Synopsis")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        n_data = global_metrics.get('NIFTY', {"val": 0, "pct": 0, "date": "N/A"})
+        n_color = "#D1FAE5" if n_data['pct'] >= 0 else "#FEE2E2"
+        n_text_color = "#065F46" if n_data['pct'] >= 0 else "#991B1B"
+        st.markdown(f"""
+            <div class="global-card" style="background-color: {n_color}; color: {n_text_color};">
+                GIFT / NIFTY 50<br>
+                <span style="font-size: 18px;">{n_data['val']:.2f}</span> ({n_data['pct']:.2f}%)<br>
+                <span style="font-size: 10px; font-weight: normal; color: gray;">As of {n_data['date']}</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        s_data = global_metrics.get('SP500', {"val": 0, "pct": 0, "date": "N/A"})
+        s_color = "#D1FAE5" if s_data['pct'] >= 0 else "#FEE2E2"
+        s_text_color = "#065F46" if s_data['pct'] >= 0 else "#991B1B"
+        st.markdown(f"""
+            <div class="global-card" style="background-color: {s_color}; color: {s_text_color};">
+                US S&P 500<br>
+                <span style="font-size: 18px;">{s_data['val']:.2f}</span> ({s_data['pct']:.2f}%)<br>
+                <span style="font-size: 10px; font-weight: normal; color: gray;">As of {s_data['date']}</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+
+# 3. Automated Market Regime Detector Engine
 def detect_market_regime():
     try:
         nifty = yf.download("^NSEI", period="5d", interval="1d", progress=False)
@@ -35,7 +104,6 @@ def detect_market_regime():
         last_row = nifty.iloc[-1]
         nifty_open = float(last_row['Open'])
         nifty_close = float(last_row['Close'])
-        
         nifty_change = abs((nifty_close - nifty_open) / nifty_open) * 100
         
         if nifty_change >= 0.95:
@@ -53,7 +121,7 @@ if "vol_default" not in st.session_state:
 
 st.info(st.session_state.regime_msg)
 
-# 3. Dynamic Filter Parameters
+# 4. Dynamic Filter Parameters
 st.markdown("### 🎛️ Dynamic Filter Parameters")
 vol_threshold = st.slider("Min Volume Surge Multiplier", 1.0, 3.0, st.session_state.vol_default, 0.1)
 close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, st.session_state.close_default, 1)
@@ -61,7 +129,7 @@ close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, st
 top_cutoff = 1 - (close_percentile / 100)
 bottom_cutoff = close_percentile / 100
 
-# 4. Sector Map Array Pool 
+# 5. High-Velocity Ticker List
 SECTOR_MAP = {
     "BANKING/FIN": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "AXISBANK.NS", "KOTAKBANK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "INDUSINDBK.NS", "PNB.NS", "YESBANK.NS", "IRFC.NS", "PFC.NS", "RECLTD.NS", "BOB.NS", "CANBK.NS", "IDFCFIRSTB.NS", "FEDERALBNK.NS", "BANDHANBNK.NS", "AUBANK.NS"],
     "IT": ["TCS.NS", "INFY.NS", "HCLTECH.NS", "WIPRO.NS", "TECHM.NS", "LTIM.NS", "TATAELXSI.NS", "KPITTECH.NS", "COFORGE.NS", "PERSISTENT.NS", "MPHASIS.NS"],
@@ -78,7 +146,7 @@ def safe_format_vol(val):
     try: return f"{float(val):.2f}x"
     except: return str(val)
 
-# 5. Pipeline Analysis Logic with NR7 Check
+# 6. Pipeline Analysis Logic with NR7 Check
 def run_advanced_scan(tickers):
     raw_candidates = []
     sector_performance = {sec: 0 for sec in SECTOR_MAP.keys()}
@@ -93,7 +161,7 @@ def run_advanced_scan(tickers):
         try:
             if ticker not in all_data.columns.get_level_values(0): continue
             df = all_data[ticker].dropna()
-            if len(df) < 22: continue # Extra buffer days to look back 7 periods safely
+            if len(df) < 22: continue
                 
             last_row = df.iloc[-1]
             prev_rows = df.iloc[:-1]
@@ -110,12 +178,9 @@ def run_advanced_scan(tickers):
             close_position = (close_val - low_val) / candle_range
             vol_multiplier = vol_val / avg_vol_20
             
-            # --- VOLATILITY COMPRESSION (NR7 LOGIC) ---
-            # Calculate the High-Low trading range for the last 7 available completed daily bars
+            # Volatility Compression (NR7 Check)
             all_ranges = df['High'] - df['Low']
             last_7_ranges = all_ranges.tail(7)
-            
-            # Check if yesterday's range is strictly the minimum value among those 7 days
             is_nr7 = last_7_ranges.iloc[-1] == last_7_ranges.min()
             nr7_status = "⚡ NR7 Ready" if is_nr7 else "Normal"
             
@@ -165,7 +230,7 @@ def run_advanced_scan(tickers):
             
     return pd.DataFrame(final_bullish), pd.DataFrame(final_bearish)
 
-# 6. UI Trigger Execution
+# 7. UI Trigger Execution
 if st.button("🚀 Run Auto-Regime Selection Scan"):
     bullish_df, bearish_df = run_advanced_scan(TICKERS_POOL)
     
