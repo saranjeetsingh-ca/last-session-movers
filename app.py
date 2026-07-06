@@ -21,11 +21,13 @@ st.markdown("""
     }
     div.stButton > button:hover { background-color: #059669; color: white; }
     .global-card { padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 8px; }
+    /* Tighten data tables for clean scannability on mobile */
+    .stDataFrame div { font-size: 13px !important; }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1>⚡ Auto-Regime Catalyst Scanner</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Filters: Global Sentiment + Vol Surge + Sector + Room + NR7 + Fundamental Catalysts</p>", unsafe_allow_html=True)
+st.markdown("<h1>⚡ Auto-Regime Advanced Scanner</h1>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Filters: Global Cues + Vol Surge + Sector + Room + Shapes + Catalysts</p>", unsafe_allow_html=True)
 
 # 2. Global Synopsis Fetching Engine
 def fetch_global_synopsis():
@@ -92,7 +94,7 @@ close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, st
 top_cutoff = 1 - (close_percentile / 100)
 bottom_cutoff = close_percentile / 100
 
-# 5. Sector Map Dictionary
+# 5. Asset Pool Setup with Sector Mapping
 SECTOR_MAP = {
     "BANKING/FIN": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "AXISBANK.NS", "BAJFINANCE.NS", "RECLTD.NS", "PFC.NS"],
     "IT": ["TCS.NS", "INFY.NS", "HCLTECH.NS", "WIPRO.NS", "TECHM.NS"],
@@ -102,32 +104,31 @@ SECTOR_MAP = {
 }
 TICKERS_POOL = [ticker for sublist in SECTOR_MAP.values() for ticker in sublist]
 
-# 6. Catalyst Checking Engine (Analyzes news headlines and analyst targets)
+def safe_format_vol(val):
+    try: return f"{float(val):.2f}x"
+    except: return str(val)
+
+# Helper: Analyst Target and News Scraper
 def analyze_catalysts(ticker_obj, current_close):
     catalyst = "None"
     target_headroom = "N/A"
-    
     try:
-        # A. Check Target Headroom
         targets = ticker_obj.analyst_price_targets
         if targets and 'mean' in targets and targets['mean'] is not None:
-            mean_target = float(targets['mean'])
-            headroom = ((mean_target - current_close) / current_close) * 100
+            headroom = ((float(targets['mean']) - current_close) / current_close) * 100
             target_headroom = f"{headroom:.1f}%"
-            
-        # B. Scan News Headlines for Catalyst Keywords
         news_list = ticker_obj.news
         if news_list:
-            for item in news_list[:3]: # Scan last 3 news items
+            for item in news_list[:3]:
                 title = item.get('title', '').lower()
                 if any(kw in title for kw in ['earning', 'profit', 'dividend', 'acquisition', 'order', 'deal', 'fda']):
-                    catalyst = "📰 Major News"
+                    catalyst = "📰 News Highlight"
                     break
     except:
         pass
     return target_headroom, catalyst
 
-# 7. Core Multi-Threaded Processing Engine
+# 6. Advanced Core Scanner Logic
 def run_advanced_scan(tickers):
     raw_candidates = []
     sector_performance = {sec: 0 for sec in SECTOR_MAP.keys()}
@@ -145,6 +146,9 @@ def run_advanced_scan(tickers):
             if len(df) < 22: continue
                 
             last_row = df.iloc[-1]
+            prev_row = df.iloc[-2]
+            prev_2_row = df.iloc[-3]
+            
             close_val = float(last_row['Close'])
             high_val = float(last_row['High'])
             low_val = float(last_row['Low'])
@@ -157,28 +161,48 @@ def run_advanced_scan(tickers):
             close_position = (close_val - low_val) / candle_range
             vol_multiplier = vol_val / avg_vol_20
             
-            # NR7 Volatility Compression Check
+            # --- FEATURE A: VOLATILITY COMPRESSION (NR7) ---
             all_ranges = df['High'] - df['Low']
             is_nr7 = all_ranges.tail(7).iloc[-1] == all_ranges.tail(7).min()
-            setup_status = "⚡ NR7 Ready" if is_nr7 else "Normal"
+            setup_status = "⚡ NR7" if is_nr7 else "Normal"
+            
+            # --- FEATURE B: GEOMETRIC CHART SHAPES ---
+            is_higher_lows = (float(last_row['Low']) > float(prev_row['Low'])) and (float(prev_row['Low']) > float(prev_2_row['Low']))
+            is_inside_bar = (float(last_row['High']) < float(prev_row['High'])) and (float(last_row['Low']) > float(prev_row['Low']))
+            
+            if is_inside_bar:
+                chart_shape = "🔍 Inside Squeeze"
+            elif is_higher_lows:
+                chart_shape = "📈 Higher Lows"
+            else:
+                chart_shape = "Horizontal"
+                
+            # Room to Move (Resistance/Support margins)
+            recent_closes = df.iloc[:-1]['Close'].tail(20)
+            highest_res = float(recent_closes.max())
+            lowest_sup = float(recent_closes.min())
+            distance_to_res = ((highest_res - close_val) / close_val) * 100
+            distance_to_sup = ((close_val - lowest_sup) / close_val) * 100
             
             if vol_multiplier >= vol_threshold:
-                # Trigger individual data extraction only for stocks that pass initial criteria
+                # Lazy-load structural news scrapers only for pre-filtered targets
                 ticker_obj = yf.Ticker(ticker)
                 headroom, catalyst_tag = analyze_catalysts(ticker_obj, close_val)
                 
                 if close_position >= top_cutoff:
+                    if close_val < highest_res and distance_to_res < 1.0: continue
                     raw_candidates.append({
                         "Symbol": clean_name, "Close": close_val, "Vol Multi": vol_multiplier,
                         "Direction": "BULLISH", "Sector": assigned_sector, "Setup": setup_status,
-                        "Analyst Headroom": headroom, "Catalyst": catalyst_tag
+                        "Shape": chart_shape, "Headroom": headroom, "Catalyst": catalyst_tag
                     })
                     sector_performance[assigned_sector] += 1
                 elif close_position <= bottom_cutoff:
+                    if close_val > lowest_sup and distance_to_sup < 1.0: continue
                     raw_candidates.append({
                         "Symbol": clean_name, "Close": close_val, "Vol Multi": vol_multiplier,
                         "Direction": "BEARISH", "Sector": assigned_sector, "Setup": setup_status,
-                        "Analyst Headroom": headroom, "Catalyst": catalyst_tag
+                        "Shape": chart_shape, "Headroom": headroom, "Catalyst": catalyst_tag
                     })
                     sector_performance[assigned_sector] -= 1
         except:
@@ -189,24 +213,28 @@ def run_advanced_scan(tickers):
     for item in raw_candidates:
         sec = item["Sector"]
         if item["Direction"] == "BULLISH" and sector_performance[sec] >= 0:
-            final_bullish.append({"Symbol": item["Symbol"], "Close": f"₹{item['Close']:.2f}", "Vol Multi": f"{item['Vol Multi']:.2f}x", "Setup": item["Setup"], "Analyst Target Headroom": item["Analyst Headroom"], "Catalyst": item["Catalyst"]})
+            final_bullish.append({"Symbol": item["Symbol"], "Close": f"₹{item['Close']:.2f}", "Vol Multi": item["Vol Multi"], "Setup": item["Setup"], "Chart Shape": item["Shape"], "Analyst Target": item["Headroom"], "Catalyst": item["Catalyst"]})
         elif item["Direction"] == "BEARISH" and sector_performance[sec] <= 0:
-            final_bearish.append({"Symbol": item["Symbol"], "Close": f"₹{item['Close']:.2f}", "Vol Multi": f"{item['Vol Multi']:.2f}x", "Setup": item["Setup"], "Analyst Target Headroom": item["Analyst Headroom"], "Catalyst": item["Catalyst"]})
+            final_bearish.append({"Symbol": item["Symbol"], "Close": f"₹{item['Close']:.2f}", "Vol Multi": item["Vol Multi"], "Setup": item["Setup"], "Chart Shape": item["Shape"], "Analyst Target": item["Headroom"], "Catalyst": item["Catalyst"]})
             
     return pd.DataFrame(final_bullish), pd.DataFrame(final_bearish)
 
-# 8. Main UI Action Control Trigger
+# 7. UI Processing Execution Button
 if st.button("🚀 Run Auto-Regime Selection Scan"):
     bullish_df, bearish_df = run_advanced_scan(TICKERS_POOL)
     
     st.markdown("### 🔥 Confluent Bullish Watchlist")
     if not bullish_df.empty:
+        bullish_df = bullish_df.sort_values(by="Vol Multi", ascending=False)
+        bullish_df["Vol Multi"] = bullish_df["Vol Multi"].apply(safe_format_vol)
         st.dataframe(bullish_df, use_container_width=True, hide_index=True)
     else:
         st.warning("No bullish structural trends detected under current parameter settings.")
         
     st.markdown("### ❄️ Confluent Bearish Watchlist")
     if not bearish_df.empty:
+        bearish_df = bearish_df.sort_values(by="Vol Multi", ascending=False)
+        bearish_df["Vol Multi"] = bearish_df["Vol Multi"].apply(safe_format_vol)
         st.dataframe(bearish_df, use_container_width=True, hide_index=True)
     else:
         st.warning("No bearish structural trends detected under current parameter settings.")
