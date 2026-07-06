@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# 1. Mobile UI Configurations
+# 1. Mobile UI Configuration
 st.set_page_config(
     page_title="NSE Turbo Scanner",
     page_icon="⚡",
@@ -22,8 +22,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1>⚡ Turbo Nifty 500 Scanner</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Multi-threaded processing engine (Completed in seconds)</p>", unsafe_allow_html=True)
+st.markdown("<h1>⚡ Turbo Momentum Scanner</h1>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>High-Velocity Large, Mid & Small-Cap Selector</p>", unsafe_allow_html=True)
 
 # 2. Configuration Parameters
 st.markdown("### 🎛️ Sensitivity Parameters")
@@ -33,34 +33,54 @@ close_percentile = st.slider("Candle Close Proximity (Top/Bottom %)", 10, 25, 15
 top_cutoff = 1 - (close_percentile / 100)
 bottom_cutoff = close_percentile / 100
 
-# 3. Cached Index Loader
-@st.cache_data(ttl=86400)
-def get_nifty_500_tickers():
-    try:
-        url = "https://www.niftyindices.com/IndexConstituent/ind_nifty500list.csv"
-        df = pd.read_csv(url)
-        return [str(symbol).strip() + ".NS" for symbol in df['Symbol'].dropna()]
-    except:
-        return ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "SBIN.NS", "ZOMATO.NS"]
+# 3. High-Velocity High-Liquidity Ticker List (Large, Mid, & Small Caps included)
+# Hardcoded to bypass the NiftyIndices server block and guarantee instant execution
+TICKERS_POOL = [
+    # High Velocity Mid & Small Caps
+    "ZOMATO.NS", "SUZLON.NS", "JIOFIN.NS", "IREDA.NS", "RVNL.NS", "IRFC.NS", 
+    "BHEL.NS", "GMRINFRA.NS", "IDEA.NS", "YESBANK.NS", "PNB.NS", "HUDCO.NS",
+    "NBCC.NS", "SJVN.NS", "NHPC.NS", "OIL.NS", "HAL.NS", "BEL.NS", "TATAPOWER.NS",
+    "ADANIPOWER.NS", "HDFCBANK.NS", "RELIANCE.NS", "TCS.NS", "INFY.NS", "SBIN.NS",
+    "ICICIBANK.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "COALINDIA.NS", "TATASTEEL.NS",
+    "NTPC.NS", "POWERGRID.NS", "ONGC.NS", "M&M.NS", "TATAMOTORS.NS", "AXISBANK.NS",
+    "KOTAKBANK.NS", "BAJFINANCE.NS", "SUNPHARMA.NS", "MARUTI.NS", "HCLTECH.NS",
+    "ADANIENT.NS", "TITAN.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS", "HINDALCO.NS",
+    "JSWSTEEL.NS", "GRASIM.NS", "WIPRO.NS", "TECHM.NS", "BPCL.NS", "CIPLA.NS",
+    "DRREDDY.NS", "APOLLOHOSP.NS", "NESTLEIND.NS", "EICHERMOT.NS", "BRITANNIA.NS",
+    "HEROMOTOCO.NS", "BAJAJ-AUTO.NS", "INDUSINDBK.NS", "DIVISLAB.NS", "LTIM.NS",
+    "BAJAJFINSV.NS", "SBILIFE.NS", "HINDUNILVR.NS", "TATACONSUM.NS", "ADANIPORTS.NS",
+    # Additional Highly Active Midcaps
+    "LICI.NS", "PAYTM.NS", "NYKAA.NS", "UNIONBANK.NS", "IOB.NS", "CENTRALBK.NS",
+    "ZENTEC.NS", "TATAELXSI.NS", "KPITTECH.NS", "COFORGE.NS", "PERSISTENT.NS",
+    "MPHASIS.NS", "DIXON.NS", "POLYCAB.NS", "KEI.NS", "IRCTC.NS", "CONCOR.NS",
+    "AMBUJACEM", "ACC.NS", "DLF.NS", "GODREJPROP.NS", "OBERREALTY.NS", "SOBHA.NS",
+    "PFC.NS", "RECLTD.NS", "GAIL.NS", "SAIL.NS", "NMDC.NS", "NATIONALUM.NS",
+    "VEDL.NS", "HINDCOPPER.NS", "EXIDEIND.NS", "AMARAJABAT.NS", "VOLTAS.NS",
+    "BLUESTARCO.NS", "HAVELLS.NS", "CUMMINSIND.NS", "AIAENG.NS", "THERMAX.NS",
+    "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BOB.NS", "CANBK.NS", "IDFCFIRSTB.NS",
+    "FEDERALBNK.NS", "BANDHANBNK.NS", "AUBANK.NS", "CUB.NS", "KARURVYSYA.NS",
+    "BIOCON.NS", "GLENMARK.NS", "LUPIN.NS", "AUBROPHARMA.NS", "LAURUSLABS.NS",
+    "CHAMBLFERT.NS", "GNFC.NS", "GSFC.NS", "COROMANDEL.NS", "DEEPAKNTR.NS",
+    "SRF.NS", "TATACHEM.NS", "PIDILITIND.NS", "BALRAMCHIN.NS", "RENUKA.NS",
+    "PRAJIND.NS", "MAXHEALTH.NS", "FORTIS.NS", "GLOBALHEALTH.NS", "MEDANTA.NS"
+]
 
 # 4. High-Speed Bulk Processing Logic
 def run_turbo_scan(tickers):
     bullish_list = []
     bearish_list = []
     
-    # STEP A: Download all 500 tickers at once using multi-threading
-    with st.spinner("Downloading full Nifty 500 market data matrix..."):
+    with st.spinner("Downloading full market data matrix (takes ~5-10 seconds)..."):
+        # Download data simultaneously in one parallel network batch
         all_data = yf.download(tickers, period="35d", interval="1d", group_by="ticker", threads=True, progress=False)
     
-    # STEP B: Process the downloaded matrix instantly out of local memory
     status_text = st.empty()
-    status_text.info("Data downloaded successfully! Running mathematical matrix sorting...")
+    status_text.info("Data extracted! Filtering high-momentum structures...")
     
     for ticker in tickers:
         clean_name = ticker.replace(".NS", "")
         
         try:
-            # Extract individual ticker data from the mega dataframe safely
             if ticker not in all_data.columns.get_level_values(0):
                 continue
             df = all_data[ticker].dropna()
@@ -85,7 +105,7 @@ def run_turbo_scan(tickers):
             close_position = (close_val - low_val) / candle_range
             vol_multiplier = vol_val / avg_vol_20
             
-            # Filter Checks
+            # Application Logic Threshold Filter Checks
             if vol_multiplier >= vol_threshold:
                 if close_position >= top_cutoff:
                     bullish_list.append({
@@ -103,10 +123,9 @@ def run_turbo_scan(tickers):
 
 # 5. UI Trigger Execution
 if st.button("🚀 Start High-Speed Market Scan"):
-    tickers_list = get_nifty_500_tickers()
-    bullish_df, bearish_df = run_turbo_scan(tickers_list)
+    bullish_df, bearish_df = run_turbo_scan(TICKERS_POOL)
     
-    # Format and present results cleanly for mobile
+    # Render Output Layout Tables on Mobile Interface
     st.markdown("### 🔥 Bullish Watchlist")
     if not bullish_df.empty:
         bullish_df = bullish_df.sort_values(by="Vol Multi", ascending=False)
