@@ -2,6 +2,9 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import time
 
 # 1. Mobile UI Viewport Setup
 st.set_page_config(
@@ -26,16 +29,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Rate-Limit Shielded Engine (v4.0 Final)</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Enterprise Network Engine (Segfault Protection Active)</p>", unsafe_allow_html=True)
 
-# --- ANTI-RATE-LIMIT DISGUISE ---
-# This makes Yahoo Finance think your cloud server is a normal person using Google Chrome
+# --- ENTERPRISE ANTI-RATE-LIMIT SESSION ---
+# Upgraded Session with automatic backoff retries for HTTP 429 (Too Many Requests)
 session = requests.Session()
 session.headers.update({
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 })
+# Automatically retry up to 3 times if Yahoo blocks us, with a 1-second delay between attempts
+retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+session.mount('https://', HTTPAdapter(max_retries=retries))
 
-# 2. Hardcoded Core Ticker Pools (Corrected for Delistings and Name Changes)
+# 2. Hardcoded Core Ticker Pools
 NIFTY_50_POOL = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
     "INFY.NS", "ITC.NS", "SBIN.NS", "HINDUNILVR.NS", "LT.NS", "HCLTECH.NS",
@@ -84,7 +90,7 @@ if custom_scrip:
         selected_tickers.append(formatted_scrip)
         st.success(f"Successfully added {formatted_scrip} to active execution loop array.")
 
-st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running concurrently.")
+st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running sequentially.")
 st.markdown("---")
 
 # Safe Options Chain Data Engine
@@ -118,12 +124,15 @@ def analyze_options_chain(ticker_obj):
 # Safe Core Pipeline Matrix Screener
 def run_broad_screener(tickers):
     complete_matrix = []
+    
+    st.info("📡 Establishing secure, single-thread connection to prevent IP bans. This may take 15-30 seconds...")
     try:
-        with st.spinner("Downloading technical chart data matrix from Yahoo Finance..."):
-            # Pass the custom session here to bypass blocks
-            all_data = yf.download(tickers, period="35d", interval="1d", group_by="ticker", threads=True, progress=False, session=session)
+        with st.spinner("Downloading technical chart data matrix safely..."):
+            # CRITICAL FIX: threads=False completely stops the C-Engine Segmentation Faults 
+            # and prevents Yahoo from flagging the IP for concurrent DDoS-like requests.
+            all_data = yf.download(tickers, period="35d", interval="1d", group_by="ticker", threads=False, progress=False, session=session)
     except Exception as e:
-        st.error("⚠️ Yahoo Finance is currently rate-limiting this cloud server. Try scanning again in a few moments.")
+        st.error("⚠️ Yahoo Finance network connection failed. Please retry.")
         return pd.DataFrame()
 
     if all_data.empty:
@@ -180,77 +189,7 @@ def run_broad_screener(tickers):
 
 # 6. UI Execution Trigger Block
 if st.button("🚀 Load Custom Ranked Momentum Monitor"):
-    # Render Global Indices safely inside the trigger loop to avoid boot freezes
+    # Render Global Indices safely
     try:
         st.markdown("### 🌍 Live Market Cues")
-        nifty_df = yf.download("^NSEI", period="2d", interval="1d", progress=False, multi_level_index=False, session=session)
-        sp_df = yf.download("^GSPC", period="2d", interval="1d", progress=False, multi_level_index=False, session=session)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if not nifty_df.empty and len(nifty_df) >= 2:
-                n_pct = ((float(nifty_df.iloc[-1]['Close']) - float(nifty_df.iloc[-2]['Close'])) / float(nifty_df.iloc[-2]['Close'])) * 100
-                st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if n_pct >= 0 else "#FEE2E2"}; color: #065F46;">NIFTY 50: {float(nifty_df.iloc[-1]["Close"]):.2f} ({n_pct:.2f}%)</div>', unsafe_allow_html=True)
-        with col2:
-            if not sp_df.empty and len(sp_df) >= 2:
-                s_pct = ((float(sp_df.iloc[-1]['Close']) - float(sp_df.iloc[-2]['Close'])) / float(sp_df.iloc[-2]['Close'])) * 100
-                st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if s_pct >= 0 else "#FEE2E2"}; color: #065F46;">US S&P 500: {float(sp_df.iloc[-1]["Close"]):.2f} ({s_pct:.2f}%)</div>', unsafe_allow_html=True)
-    except:
-        st.warning("📊 Global market cue widget skipped due to external server rate restrictions.")
-
-    raw_df = run_broad_screener(selected_tickers)
-    
-    if not raw_df.empty:
-        raw_df = raw_df.sort_values(by="Vol Surge", ascending=False)
-        
-        with st.spinner("Extracting Options Open Interest structures safely..."):
-            pcr_values = []
-            oi_signals = []
-            for _, row in raw_df.iterrows():
-                if len(pcr_values) < 20: # Keep option reads low to protect against rate limits
-                    # Pass the custom session here as well
-                    t_obj = yf.Ticker(row['TickerObj'], session=session)
-                    pcr_v, sig = analyze_options_chain(t_obj)
-                    pcr_values.append(pcr_v)
-                    oi_signals.append(sig)
-                else:
-                    pcr_values.append(0.85)
-                    oi_signals.append("Neutral")
-                    
-            raw_df["PCR_Raw"] = pcr_values
-            raw_df["Options Bias"] = oi_signals
-
-        # Score Calculations Engine
-        scores = []
-        for _, row in raw_df.iterrows():
-            pos = row['Close Pos %']
-            pos_score = 30 * (pos / 100) if pos >= 50 else 30 * ((100 - pos) / 100)
-            vol_score = min(30.0, (row['Vol Surge'] / 2.0) * 30.0)
-            pattern_score = 20 if (row['IsNR7'] or row['IsInside']) else (10 if row['IsHL'] else 5)
-            pcr = row['PCR_Raw']
-            options_score = 20 if ((pos >= 75 and pcr <= 0.6) or (pos <= 25 and pcr >= 1.1)) else (10 if pcr != 0.85 else 5)
-            
-            final_score = int(pos_score + vol_score + pattern_score + options_score)
-            scores.append(min(100, final_score))
-            
-        raw_df["Rank Score"] = scores
-        raw_df["Vol Surge"] = raw_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
-        raw_df["Close Pos %"] = raw_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
-        raw_df["PCR"] = raw_df["PCR_Raw"].map(lambda x: f"{x:.2f}" if x != 0.85 else "N/A")
-        
-        final_clean_df = raw_df[["Rank Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape", "PCR", "Options Bias"]]
-        
-        top_tier_df = final_clean_df[final_clean_df["Rank Score"] >= 75].sort_values(by="Rank Score", ascending=False)
-        all_market_df = final_clean_df.sort_values(by="Rank Score", ascending=False)
-        
-        st.markdown("### 🏆 High-Probability Top Tier Picks (Score ≥ 75)")
-        if not top_tier_df.empty:
-            st.dataframe(top_tier_df, width="stretch", hide_index=True)
-        else:
-            st.info("No tickers crossed the strict structural Rank 75 threshold today.")
-            
-        st.markdown("### 📋 Complete Raw Momentum Directory")
-        st.dataframe(all_market_df, width="stretch", hide_index=True)
-        st.success("Custom processing matrix complete!")
-    else:
-        st.error("Screener dataset is empty. Please wait a moment and try running the scan again.")
+        nifty_df = yf.download("^NSE
