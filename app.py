@@ -39,6 +39,7 @@ with st.expander("📚 Technical Scoring Matrix & Guide"):
     * **Pattern / Chart Shape (20 Points):** 20 points for an *Inside Bar Squeeze* or *NR7* coil. 10 points for a *Higher Lows* trend. 5 points for a standard flat shape.
 
     ### 📊 Column Definitions
+    * **Trend:** Indicates if the current price is trading above (🟢 Bullish) or below (🔴 Bearish) its 20-day moving average.
     * **Vol Surge:** Today's volume divided by the 20-day average. Anything above 1.50x indicates strong institutional footprint.
     * **Chart Shape:** "Higher Lows" means buyers are stepping up early. "Inside Sqz" indicates a coiled spring (volatility contraction).
     * **Pattern:** Identifies explosive setup states like NR7 (narrowest range of 7 days) or normal regimes.
@@ -175,13 +176,17 @@ def run_broad_screener(tickers):
                 high_val = float(last_row['High'])
                 low_val = float(last_row['Low'])
                 
+                # Baseline Calculations
                 avg_vol_20 = float(df.iloc[:-1]['Volume'].tail(20).mean())
+                sma_20 = float(df['Close'].tail(20).mean())
+                
                 candle_range = high_val - low_val
                 if candle_range == 0 or avg_vol_20 == 0: continue
                     
                 close_position_pct = ((close_val - low_val) / candle_range) * 100
                 vol_multiplier = float(last_row['Volume']) / avg_vol_20
                 
+                # Pattern Logic
                 is_nr7 = (high_val - low_val) == (df['High'] - df['Low']).tail(7).min()
                 setup_status = "⚡ NR7" if is_nr7 else "Normal"
                 
@@ -189,9 +194,13 @@ def run_broad_screener(tickers):
                 is_inside_bar = (float(last_row['High']) < float(prev_row['High'])) and (float(last_row['Low']) > float(prev_row['Low']))
                 chart_shape = "Inside Sqz" if is_inside_bar else ("Higher Lows" if is_higher_lows else "Normal")
                 
+                # Trend Logic
+                trend_status = "🟢 Bullish" if close_val > sma_20 else "🔴 Bearish"
+                
                 complete_matrix.append({
-                    "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Vol Surge": vol_multiplier,
-                    "Close Pos %": close_position_pct, "Pattern": setup_status, "Chart Shape": chart_shape,
+                    "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Trend": trend_status, 
+                    "Vol Surge": vol_multiplier, "Close Pos %": close_position_pct, 
+                    "Pattern": setup_status, "Chart Shape": chart_shape,
                     "RawClose": close_val, "IsNR7": is_nr7, "IsInside": is_inside_bar, "IsHL": is_higher_lows
                 })
             except: continue
@@ -240,8 +249,8 @@ if st.button("🚀 Run Technical Master Scan"):
         raw_df["Vol Surge"] = raw_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
         raw_df["Close Pos %"] = raw_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
 
-        # Select Columns for Display
-        final_raw_directory = raw_df[["Tech Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape"]]
+        # Select Columns for Display (Now includes "Trend")
+        final_raw_directory = raw_df[["Tech Score", "Symbol", "Price", "Trend", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape"]]
 
         # 3. FINAL RENDER
         st.markdown("### 📋 Complete Technical Market Directory")
