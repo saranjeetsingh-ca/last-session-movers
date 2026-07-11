@@ -94,12 +94,26 @@ universe_choice = st.radio("Choose Scanner Target Base:", ["Nifty 50 Large-Caps 
 
 selected_tickers = NIFTY_50_POOL.copy() if universe_choice == "Nifty 50 Large-Caps Only" else EXPANDED_POOL.copy()
 
-custom_scrip = st.text_input("➕ Inject Custom Stock Ticker (e.g., CAMPUS, HUDCO):").strip().upper()
-if custom_scrip:
-    formatted_scrip = custom_scrip if custom_scrip.endswith(".NS") else f"{custom_scrip}.NS"
-    if formatted_scrip not in selected_tickers:
-        selected_tickers.append(formatted_scrip)
-        st.success(f"Successfully added {formatted_scrip} to active execution loop array.")
+# --- MOBILE FIX: Session State & Form ---
+if "custom_additions" not in st.session_state:
+    st.session_state.custom_additions = []
+
+with st.form(key="ticker_injector", clear_on_submit=True):
+    custom_scrip = st.text_input("➕ Inject Custom Stock Ticker (e.g., CAMPUS, HUDCO):")
+    add_btn = st.form_submit_button("Add to Scanner")
+
+if add_btn and custom_scrip:
+    clean_scrip = custom_scrip.strip().upper()
+    formatted_scrip = clean_scrip if clean_scrip.endswith(".NS") else f"{clean_scrip}.NS"
+    
+    if formatted_scrip not in selected_tickers and formatted_scrip not in st.session_state.custom_additions:
+        st.session_state.custom_additions.append(formatted_scrip)
+        st.success(f"Successfully locked {formatted_scrip} into the matrix!")
+
+selected_tickers.extend(st.session_state.custom_additions)
+
+if st.session_state.custom_additions:
+    st.caption(f"📝 Custom Injections Active: **{', '.join(st.session_state.custom_additions)}**")
 
 st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running in stable batches.")
 st.markdown("---")
