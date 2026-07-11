@@ -5,6 +5,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import time
+import urllib.parse
 
 # 1. Mobile UI Viewport Setup
 st.set_page_config(
@@ -29,7 +30,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Pure Technical Engine + Top 30 Derivatives Validation</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Pure Technical Engine + Live NSE Website Derivatives Validation</p>", unsafe_allow_html=True)
 
 # --- PARAMETER GUIDELINES & WEIGHTAGE BLOCK ---
 with st.expander("📚 Pure Technical Scoring Matrix & Guide"):
@@ -42,7 +43,7 @@ with st.expander("📚 Pure Technical Scoring Matrix & Guide"):
     ### 📊 Column Definitions
     * **Vol Surge:** Today's volume divided by the 20-day average. Anything above 1.50x indicates strong institutional footprint.
     * **Chart Shape:** "Higher Lows" means buyers are stepping up early. "Inside Sqz" indicates a coiled spring (volatility contraction).
-    * **PCR (Options Matrix Only):** Put-Call Ratio. Below 0.60 indicates heavily Bullish (Call Heavy). Above 1.15 indicates Bearish (Put Heavy).
+    * **PCR (Options Matrix Only):** Put-Call Ratio fetched live from NSE India website. Below 0.60 indicates heavily Bullish (Call Heavy). Above 1.15 indicates Bearish (Put Heavy). Default baseline fallback is 0.85 if no data is found or stock is non-F&O.
     """)
 
 # --- ENTERPRISE ANTI-RATE-LIMIT SESSION ---
@@ -105,32 +106,47 @@ if custom_scrip:
 st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running sequentially.")
 st.markdown("---")
 
-# Safe Options Chain Data Engine
-def analyze_options_chain(ticker_obj):
-    pcr_val = 0.85 
+# --- NEW: DIRECT LIVE NSE WEBSCRAPER ENGINE ---
+def fetch_live_nse_pcr(symbol):
+    """
+    Connects directly to NSE India's hidden API to extract live derivative open interest data.
+    """
+    pcr_val = 0.85
     oi_signal = "Neutral"
+    
+    # Clean up ticker names like M&M to keep HTTP strings valid
+    safe_symbol = urllib.parse.quote(symbol)
+    base_url = "https://www.nseindia.com"
+    api_url = f"https://www.nseindia.com/api/option-chain-equities?symbol={safe_symbol}"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive"
+    }
+    
+    nse_session = requests.Session()
     try:
-        if not hasattr(ticker_obj, 'options') or not ticker_obj.options:
-            return pcr_val, oi_signal
-        expirations = ticker_obj.options
-        if len(expirations) == 0:
-            return pcr_val, oi_signal
-        near_expiry = expirations[0]
-        chains = ticker_obj.option_chain(near_expiry)
-        calls_df = chains.calls
-        puts_df = chains.puts
-        if calls_df.empty or puts_df.empty:
-            return pcr_val, oi_signal
-        if 'openInterest' not in calls_df.columns or 'openInterest' not in puts_df.columns:
-            return pcr_val, oi_signal
-        total_call_oi = calls_df['openInterest'].dropna().sum()
-        total_put_oi = puts_df['openInterest'].dropna().sum()
-        if total_call_oi > 0:
-            pcr_val = float(total_put_oi / total_call_oi)
-            if pcr_val <= 0.55: oi_signal = "🐂 Call Heavy"
-            elif pcr_val >= 1.15: oi_signal = "🐻 Put Heavy"
+        # Step 1: Hit NSE Homepage to generate a fresh cookie session state
+        nse_session.get(base_url, headers=headers, timeout=5)
+        
+        # Step 2: Extract the live operational options JSON dictionary
+        response = nse_session.get(api_url, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            total_ce_oi = data['filtered']['CE']['totOI']
+            total_pe_oi = data['filtered']['PE']['totOI']
+            
+            if total_ce_oi > 0:
+                pcr_val = float(total_pe_oi / total_ce_oi)
+                if pcr_val <= 0.55: oi_signal = "🐂 Call Heavy"
+                elif pcr_val >= 1.15: oi_signal = "🐻 Put Heavy"
     except:
+        # Falls back to standard baseline if rate limited or if stock lacks an F&O options chain
         pass
+        
     return pcr_val, oi_signal
 
 # Safe Core Pipeline Matrix Screener
@@ -232,23 +248,30 @@ if st.button("🚀 Run Technical Master Scan"):
         raw_df["Tech Score"] = scores
         raw_df = raw_df.sort_values(by="Tech Score", ascending=False)
         
-        # 2. ISOLATE TOP 30 FOR DERIVATIVES VALIDATION
+        # 2. ISOLATE TOP 30 FOR LIVE DERIVATIVES VALIDATION
         top_30_df = raw_df.head(30).copy()
         
-        with st.spinner("Extracting Options Data for the Top 30 Technical Setups..."):
+        options_progress = st.empty()
+        with st.spinner("Extracting LIVE Options Data directly from NSE India website..."):
             pcr_values = []
             oi_signals = []
-            for _, row in top_30_df.iterrows():
-                t_obj = yf.Ticker(row['TickerObj'], session=session)
-                pcr_v, sig = analyze_options_chain(t_obj)
+            for idx, row in top_30_df.iterrows():
+                symbol_name = row['Symbol']
+                options_progress.caption(f"📡 Querying NSE Options Vault: {symbol_name}")
+                
+                # Run the direct scraper function
+                pcr_v, sig = fetch_live_nse_pcr(symbol_name)
                 pcr_values.append(pcr_v)
                 oi_signals.append(sig)
-                time.sleep(0.1) # Micro-pause
+                
+                # Vital 1-second throttle delay to shield the Streamlit server from getting IP blacklisted by NSE
+                time.sleep(1.0)
                 
             top_30_df["PCR_Raw"] = pcr_values
             top_30_df["Options Bias"] = oi_signals
+        options_progress.empty()
 
-        # 3. CLEAN UP FORMATTING FOR UI
+        # 3. CLEAN UP FORMATTING FOR UI DISPLAY
         # Format Top 30 Matrix
         top_30_df["Vol Surge"] = top_30_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
         top_30_df["Close Pos %"] = top_30_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
@@ -263,7 +286,7 @@ if st.button("🚀 Run Technical Master Scan"):
         final_raw_directory = raw_df[["Tech Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape"]]
 
         # 4. FINAL RENDER
-        st.markdown("### 🎯 Top 30 Master Candidates (with Derivatives Validation)")
+        st.markdown("### 🎯 Top 30 Master Candidates (with Direct NSE PCR Validation)")
         if not final_top_30.empty:
             st.dataframe(final_top_30, width="stretch", hide_index=True)
         else:
@@ -271,6 +294,6 @@ if st.button("🚀 Run Technical Master Scan"):
             
         st.markdown("### 📋 Complete Technical Market Directory")
         st.dataframe(final_raw_directory, width="stretch", hide_index=True)
-        st.success("Scan complete! Pure technical momentum isolated successfully.")
+        st.success("Scan complete! Real-time technical momentum and live NSE options metrics are synchronized.")
     else:
         st.error("Screener dataset is empty. Please wait a moment and try running the scan again.")
