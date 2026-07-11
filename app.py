@@ -53,7 +53,7 @@ if global_metrics:
         s_data = global_metrics.get('SP500', {"val": 0, "pct": 0})
         st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if s_data["pct"] >= 0 else "#FEE2E2"}; color: #065F46;">US S&P 500<br><span style="font-size: 16px;">{s_data["val"]:.2f}</span> ({s_data["pct"]:.2f}%)</div>', unsafe_allow_html=True)
 
-# 3. Base Hardcoded Ticker Pools (Removed potentially unlisted/restructured symbols)
+# 3. Base Hardcoded Ticker Pools
 NIFTY_50_POOL = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
     "INFY.NS", "ITC.NS", "SBIN.NS", "HINDUNILVR.NS", "LT.NS", "HCLTECH.NS",
@@ -158,7 +158,6 @@ def run_broad_screener(tickers):
         progress_text.caption(f"🔄 Processing structural anomalies: {clean_name} ({index + 1}/{total_tickers})")
         
         try:
-            # CRITICAL DEFENSIVE CHECK: Verify data frame is fully populated before running calculations
             if ticker not in all_data.columns.get_level_values(0): continue
             df = all_data[ticker].dropna()
             if df.empty or len(df) < 22: continue
@@ -185,7 +184,72 @@ def run_broad_screener(tickers):
             is_inside_bar = (float(last_row['High']) < float(prev_row['High'])) and (float(last_row['Low']) > float(prev_row['Low']))
             chart_shape = "Inside Sqz" if is_inside_bar else ("Higher Lows" if is_higher_lows else "Normal")
             
+            # FIXED: Closed out dictionary elements and securely appended rows
             complete_matrix.append({
                 "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Vol Surge": vol_multiplier,
                 "Close Pos %": close_position_pct, "Pattern": setup_status, "Chart Shape": chart_shape,
-                "TickerObj": ticker, "RawClose": close_val, "IsNR7
+                "TickerObj": ticker, "RawClose": close_val, "IsNR7": is_nr7, "IsInside": is_inside_bar, "IsHL": is_higher_lows
+            })
+        except: continue
+        
+    progress_bar.empty()
+    progress_text.empty()
+    return pd.DataFrame(complete_matrix)
+
+# 6. UI Execution Trigger Block
+if st.button("🚀 Load Custom Ranked Momentum Monitor"):
+    raw_df = run_broad_screener(selected_tickers)
+    
+    if not raw_df.empty:
+        raw_df = raw_df.sort_values(by="Vol Surge", ascending=False)
+        
+        with st.spinner("Extracting Options Open Interest structures safely..."):
+            pcr_values = []
+            oi_signals = []
+            for _, row in raw_df.iterrows():
+                if len(pcr_values) < 25: 
+                    t_obj = yf.Ticker(row['TickerObj'])
+                    pcr_v, sig = analyze_options_chain(t_obj)
+                    pcr_values.append(pcr_v)
+                    oi_signals.append(sig)
+                else:
+                    pcr_values.append(0.85)
+                    oi_signals.append("Neutral")
+                    
+            raw_df["PCR_Raw"] = pcr_values
+            raw_df["Options Bias"] = oi_signals
+
+        # Score Calculations Engine
+        scores = []
+        for _, row in raw_df.iterrows():
+            pos = row['Close Pos %']
+            pos_score = 30 * (pos / 100) if pos >= 50 else 30 * ((100 - pos) / 100)
+            vol_score = min(30.0, (row['Vol Surge'] / 2.0) * 30.0)
+            pattern_score = 20 if (row['IsNR7'] or row['IsInside']) else (10 if row['IsHL'] else 5)
+            pcr = row['PCR_Raw']
+            options_score = 20 if ((pos >= 75 and pcr <= 0.6) or (pos <= 25 and pcr >= 1.1)) else (10 if pcr != 0.85 else 5)
+            
+            final_score = int(pos_score + vol_score + pattern_score + options_score)
+            scores.append(min(100, final_score))
+            
+        raw_df["Rank Score"] = scores
+        raw_df["Vol Surge"] = raw_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
+        raw_df["Close Pos %"] = raw_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
+        raw_df["PCR"] = raw_df["PCR_Raw"].map(lambda x: f"{x:.2f}" if x != 0.85 else "N/A")
+        
+        final_clean_df = raw_df[["Rank Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape", "PCR", "Options Bias"]]
+        
+        top_tier_df = final_clean_df[final_clean_df["Rank Score"] >= 75].sort_values(by="Rank Score", ascending=False)
+        all_market_df = final_clean_df.sort_values(by="Rank Score", ascending=False)
+        
+        st.markdown("### 🏆 High-Probability Top Tier Picks (Score ≥ 75)")
+        if not top_tier_df.empty:
+            st.dataframe(top_tier_df, width="stretch", hide_index=True)
+        else:
+            st.info("No tickers crossed the strict structural Rank 75 threshold today.")
+            
+        st.markdown("### 📋 Complete Raw Momentum Directory")
+        st.dataframe(all_market_df, width="stretch", hide_index=True)
+        st.success("Custom processing matrix complete!")
+    else:
+        st.error("Data tracking pipeline encountered an unexpected sync reset.")
