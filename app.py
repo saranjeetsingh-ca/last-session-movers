@@ -25,7 +25,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Stabilized Options Logic (Crash Protection Activated)</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Syntax Fixed & Protected Performance Matrix</p>", unsafe_allow_html=True)
 
 # 2. Global Synopsis Engine
 def fetch_global_synopsis():
@@ -53,7 +53,7 @@ if global_metrics:
         s_data = global_metrics.get('SP500', {"val": 0, "pct": 0})
         st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if s_data["pct"] >= 0 else "#FEE2E2"}; color: #065F46;">US S&P 500<br><span style="font-size: 16px;">{s_data["val"]:.2f}</span> ({s_data["pct"]:.2f}%)</div>', unsafe_allow_html=True)
 
-# 3. Defensive Base Pools (Filtered out unstable names)
+# 3. Base Hardcoded Ticker Pools
 NIFTY_50_POOL = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
     "INFY.NS", "ITC.NS", "SBIN.NS", "HINDUNILVR.NS", "LT.NS", "HCLTECH.NS",
@@ -105,12 +105,11 @@ if custom_scrip:
 st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running concurrently.")
 st.markdown("---")
 
-# 4. FIXED: Crash-Protected Options Engine
+# 4. FIXED Syntax Option Chain Scraper
 def analyze_options_chain(ticker_obj):
     pcr_val = 0.85 
     oi_signal = "Neutral"
     try:
-        # Strict Fix A: Safeguard against empty or missing options chains
         if not hasattr(ticker_obj, 'options') or not ticker_obj.options:
             return pcr_val, oi_signal
             
@@ -121,14 +120,13 @@ def analyze_options_chain(ticker_obj):
         near_expiry = expirations[0]
         chains = ticker_obj.option_chain(near_expiry)
         
-        # Strict Fix B: Safeguard against empty dataframes to prevent segmentation faults
-        if chains.calls.empty or puts_df := chains.puts.empty:
-            return pcr_val, oi_signal
-            
         calls_df = chains.calls
         puts_df = chains.puts
         
-        # Ensure openInterest column exists and contains valid data
+        # FIXED: Removed the invalid inline assignment syntax block entirely
+        if calls_df.empty or puts_df.empty:
+            return pcr_val, oi_signal
+            
         if 'openInterest' not in calls_df.columns or 'openInterest' not in puts_df.columns:
             return pcr_val, oi_signal
             
@@ -139,12 +137,11 @@ def analyze_options_chain(ticker_obj):
             pcr_val = float(total_put_oi / total_call_oi)
             if pcr_val <= 0.55: oi_signal = "🐂 Call Heavy"
             elif pcr_val >= 1.15: oi_signal = "🐻 Put Heavy"
-    except Exception as e:
-        # Fail silently and pass baseline data rather than crashing the runtime server
+    except:
         pass
     return pcr_val, oi_signal
 
-# 5. Core Pipeline Matrix Screener with Real-Time Progress Visualizer
+# 5. Core Pipeline Matrix Screener
 def run_broad_screener(tickers):
     complete_matrix = []
     
@@ -210,7 +207,7 @@ if st.button("🚀 Load Custom Ranked Momentum Monitor"):
             pcr_values = []
             oi_signals = []
             for _, row in raw_df.iterrows():
-                if len(pcr_values) < 25: # Check the top 25 volume leaders
+                if len(pcr_values) < 25: 
                     t_obj = yf.Ticker(row['TickerObj'])
                     pcr_v, sig = analyze_options_chain(t_obj)
                     pcr_values.append(pcr_v)
