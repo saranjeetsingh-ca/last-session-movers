@@ -29,22 +29,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Enterprise Network Engine (Segfault Protection Active)</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Pure Technical Engine + Top 30 Derivatives Validation</p>", unsafe_allow_html=True)
 
-# --- NEW: PARAMETER GUIDELINES & WEIGHTAGE BLOCK ---
-with st.expander("📚 Scoring Weightage & Parameter Guide"):
+# --- PARAMETER GUIDELINES & WEIGHTAGE BLOCK ---
+with st.expander("📚 Pure Technical Scoring Matrix & Guide"):
     st.markdown("""
-    ### 🧮 Algorithmic Scoring Matrix (100 Points Total)
-    * **Close Position % (30 Points):** Points are awarded based on how close the stock closed to its absolute high of the day. A 100% close gets max points.
-    * **Volume Surge (30 Points):** Points scale up as today's volume exceeds the 20-day average. Max points are awarded at a 2.0x volume multiplier.
+    ### 🧮 Algorithmic Technical Score (100 Points Total)
+    * **Close Position % (40 Points):** Points are awarded based on how close the stock closed to its absolute high of the day. A 100% close gets max points.
+    * **Volume Surge (40 Points):** Points scale up as today's volume exceeds the 20-day average. Max points are awarded at a 2.0x volume multiplier.
     * **Pattern / Shape Squeeze (20 Points):** 20 points for an *Inside Bar Squeeze* or *NR7* coil. 10 points for a *Higher Lows* trend. 5 points for a standard flat shape.
-    * **Options Sentiment Alignment (20 Points):** 20 points awarded if the Options Put-Call Ratio (PCR) perfectly supports the technical direction of the stock (e.g., Call Heavy on a breakout).
 
     ### 📊 Column Definitions
     * **Vol Surge:** Today's volume divided by the 20-day average. Anything above 1.50x indicates strong institutional footprint.
-    * **Close Pos %:** 100% means the stock closed exactly at the high of the day. 0% means it closed exactly at the low.
-    * **Chart Shape:** "Higher Lows" means buyers are stepping up early. "Inside Sqz" means the daily candle is completely engulfed by yesterday's range (a coiled spring).
-    * **PCR (Put-Call Ratio):** A ratio below 0.60 indicates a heavily Bullish (Call Heavy) options bias. A ratio above 1.15 indicates a Bearish (Put Heavy) bias.
+    * **Chart Shape:** "Higher Lows" means buyers are stepping up early. "Inside Sqz" indicates a coiled spring (volatility contraction).
+    * **PCR (Options Matrix Only):** Put-Call Ratio. Below 0.60 indicates heavily Bullish (Call Heavy). Above 1.15 indicates Bearish (Put Heavy).
     """)
 
 # --- ENTERPRISE ANTI-RATE-LIMIT SESSION ---
@@ -138,8 +136,7 @@ def analyze_options_chain(ticker_obj):
 # Safe Core Pipeline Matrix Screener
 def run_broad_screener(tickers):
     complete_matrix = []
-    
-    st.info("📡 Establishing secure, single-thread connection to prevent IP bans. This may take 15-30 seconds...")
+    st.info("📡 Establishing secure connection. Fetching pure price-action data...")
     try:
         with st.spinner("Downloading technical chart data matrix safely..."):
             all_data = yf.download(tickers, period="35d", interval="1d", group_by="ticker", threads=False, progress=False, session=session)
@@ -200,7 +197,7 @@ def run_broad_screener(tickers):
     return pd.DataFrame(complete_matrix)
 
 # 6. UI Execution Trigger Block
-if st.button("🚀 Load Custom Ranked Momentum Monitor"):
+if st.button("🚀 Run Technical Master Scan"):
     try:
         st.markdown("### 🌍 Live Market Cues")
         nifty_df = yf.download("^NSEI", period="2d", interval="1d", progress=False, multi_level_index=False, session=session, threads=False)
@@ -221,56 +218,59 @@ if st.button("🚀 Load Custom Ranked Momentum Monitor"):
     raw_df = run_broad_screener(selected_tickers)
     
     if not raw_df.empty:
-        raw_df = raw_df.sort_values(by="Vol Surge", ascending=False)
-        
-        with st.spinner("Extracting Options Open Interest structures safely..."):
-            pcr_values = []
-            oi_signals = []
-            for index, row in raw_df.iterrows():
-                if len(pcr_values) < 10: 
-                    t_obj = yf.Ticker(row['TickerObj'], session=session)
-                    pcr_v, sig = analyze_options_chain(t_obj)
-                    pcr_values.append(pcr_v)
-                    oi_signals.append(sig)
-                    time.sleep(0.1) 
-                else:
-                    pcr_values.append(0.85)
-                    oi_signals.append("Neutral")
-                    
-            raw_df["PCR_Raw"] = pcr_values
-            raw_df["Options Bias"] = oi_signals
-
-        # Score Calculations Engine
+        # 1. PURE TECHNICAL SCORING ENGINE
         scores = []
         for _, row in raw_df.iterrows():
             pos = row['Close Pos %']
-            pos_score = 30 * (pos / 100) if pos >= 50 else 30 * ((100 - pos) / 100)
-            vol_score = min(30.0, (row['Vol Surge'] / 2.0) * 30.0)
+            pos_score = 40 * (pos / 100) if pos >= 50 else 40 * ((100 - pos) / 100)
+            vol_score = min(40.0, (row['Vol Surge'] / 2.0) * 40.0)
             pattern_score = 20 if (row['IsNR7'] or row['IsInside']) else (10 if row['IsHL'] else 5)
-            pcr = row['PCR_Raw']
-            options_score = 20 if ((pos >= 75 and pcr <= 0.6) or (pos <= 25 and pcr >= 1.1)) else (10 if pcr != 0.85 else 5)
             
-            final_score = int(pos_score + vol_score + pattern_score + options_score)
+            final_score = int(pos_score + vol_score + pattern_score)
             scores.append(min(100, final_score))
             
-        raw_df["Rank Score"] = scores
+        raw_df["Tech Score"] = scores
+        raw_df = raw_df.sort_values(by="Tech Score", ascending=False)
+        
+        # 2. ISOLATE TOP 30 FOR DERIVATIVES VALIDATION
+        top_30_df = raw_df.head(30).copy()
+        
+        with st.spinner("Extracting Options Data for the Top 30 Technical Setups..."):
+            pcr_values = []
+            oi_signals = []
+            for _, row in top_30_df.iterrows():
+                t_obj = yf.Ticker(row['TickerObj'], session=session)
+                pcr_v, sig = analyze_options_chain(t_obj)
+                pcr_values.append(pcr_v)
+                oi_signals.append(sig)
+                time.sleep(0.1) # Micro-pause
+                
+            top_30_df["PCR_Raw"] = pcr_values
+            top_30_df["Options Bias"] = oi_signals
+
+        # 3. CLEAN UP FORMATTING FOR UI
+        # Format Top 30 Matrix
+        top_30_df["Vol Surge"] = top_30_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
+        top_30_df["Close Pos %"] = top_30_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
+        top_30_df["PCR"] = top_30_df["PCR_Raw"].map(lambda x: f"{x:.2f}" if x != 0.85 else "N/A")
+        
+        # Format Raw Market Matrix
         raw_df["Vol Surge"] = raw_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
         raw_df["Close Pos %"] = raw_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
-        raw_df["PCR"] = raw_df["PCR_Raw"].map(lambda x: f"{x:.2f}" if x != 0.85 else "N/A")
-        
-        final_clean_df = raw_df[["Rank Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape", "PCR", "Options Bias"]]
-        
-        top_tier_df = final_clean_df[final_clean_df["Rank Score"] >= 75].sort_values(by="Rank Score", ascending=False)
-        all_market_df = final_clean_df.sort_values(by="Rank Score", ascending=False)
-        
-        st.markdown("### 🏆 High-Probability Top Tier Picks (Score ≥ 75)")
-        if not top_tier_df.empty:
-            st.dataframe(top_tier_df, width="stretch", hide_index=True)
+
+        # Select Columns for Display
+        final_top_30 = top_30_df[["Tech Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape", "PCR", "Options Bias"]]
+        final_raw_directory = raw_df[["Tech Score", "Symbol", "Price", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape"]]
+
+        # 4. FINAL RENDER
+        st.markdown("### 🎯 Top 30 Master Candidates (with Derivatives Validation)")
+        if not final_top_30.empty:
+            st.dataframe(final_top_30, width="stretch", hide_index=True)
         else:
-            st.info("No tickers crossed the strict structural Rank 75 threshold today.")
+            st.info("Insufficient data to generate top 30 matrix.")
             
-        st.markdown("### 📋 Complete Raw Momentum Directory")
-        st.dataframe(all_market_df, width="stretch", hide_index=True)
-        st.success("Custom processing matrix complete!")
+        st.markdown("### 📋 Complete Technical Market Directory")
+        st.dataframe(final_raw_directory, width="stretch", hide_index=True)
+        st.success("Scan complete! Pure technical momentum isolated successfully.")
     else:
         st.error("Screener dataset is empty. Please wait a moment and try running the scan again.")
