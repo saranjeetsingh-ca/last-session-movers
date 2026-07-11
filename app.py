@@ -39,6 +39,7 @@ with st.expander("📚 Technical Scoring Matrix & Guide"):
     * **Pattern / Chart Shape (20 Points):** 20 points for an *Inside Bar Squeeze* or *NR7* coil. 10 points for a *Higher Lows* trend. 5 points for a standard flat shape.
 
     ### 📊 Column Definitions
+    * **1D Change:** The exact percentage difference between today's close and yesterday's close.
     * **Trend:** Indicates if the current price is trading above (🟢 Bullish) or below (🔴 Bearish) its 20-day moving average.
     * **Vol Surge:** Today's volume divided by the 20-day average. Anything above 1.50x indicates strong institutional footprint.
     * **Chart Shape:** "Higher Lows" means buyers are stepping up early. "Inside Sqz" indicates a coiled spring (volatility contraction).
@@ -173,12 +174,16 @@ def run_broad_screener(tickers):
                 prev_2_row = df.iloc[-3]
                 
                 close_val = float(last_row['Close'])
+                prev_close = float(prev_row['Close'])
                 high_val = float(last_row['High'])
                 low_val = float(last_row['Low'])
                 
                 # Baseline Calculations
                 avg_vol_20 = float(df.iloc[:-1]['Volume'].tail(20).mean())
                 sma_20 = float(df['Close'].tail(20).mean())
+                
+                # 1D Percentage Change
+                pct_change = ((close_val - prev_close) / prev_close) * 100
                 
                 candle_range = high_val - low_val
                 if candle_range == 0 or avg_vol_20 == 0: continue
@@ -198,9 +203,14 @@ def run_broad_screener(tickers):
                 trend_status = "🟢 Bullish" if close_val > sma_20 else "🔴 Bearish"
                 
                 complete_matrix.append({
-                    "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Trend": trend_status, 
-                    "Vol Surge": vol_multiplier, "Close Pos %": close_position_pct, 
-                    "Pattern": setup_status, "Chart Shape": chart_shape,
+                    "Symbol": clean_name, 
+                    "Price": f"₹{close_val:.2f}",
+                    "1D Change": f"{pct_change:+.2f}%", 
+                    "Trend": trend_status, 
+                    "Vol Surge": vol_multiplier, 
+                    "Close Pos %": close_position_pct, 
+                    "Pattern": setup_status, 
+                    "Chart Shape": chart_shape,
                     "RawClose": close_val, "IsNR7": is_nr7, "IsInside": is_inside_bar, "IsHL": is_higher_lows
                 })
             except: continue
@@ -249,8 +259,8 @@ if st.button("🚀 Run Technical Master Scan"):
         raw_df["Vol Surge"] = raw_df["Vol Surge"].map(lambda x: f"{x:.2f}x")
         raw_df["Close Pos %"] = raw_df["Close Pos %"].map(lambda x: f"{x:.0f}%")
 
-        # Select Columns for Display (Now includes "Trend")
-        final_raw_directory = raw_df[["Tech Score", "Symbol", "Price", "Trend", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape"]]
+        # Select Columns for Display (Now includes "1D Change")
+        final_raw_directory = raw_df[["Tech Score", "Symbol", "Price", "1D Change", "Trend", "Vol Surge", "Close Pos %", "Pattern", "Chart Shape"]]
 
         # 3. FINAL RENDER
         st.markdown("### 📋 Complete Technical Market Directory")
