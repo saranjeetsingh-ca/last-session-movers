@@ -25,7 +25,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Enterprise Engine (Stability & Table Layout Patch Loaded)</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Clean Log Engine (Ticker Definitions Corrected)</p>", unsafe_allow_html=True)
 
 # 2. Global Synopsis Engine
 def fetch_global_synopsis():
@@ -53,7 +53,7 @@ if global_metrics:
         s_data = global_metrics.get('SP500', {"val": 0, "pct": 0})
         st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if s_data["pct"] >= 0 else "#FEE2E2"}; color: #065F46;">US S&P 500<br><span style="font-size: 16px;">{s_data["val"]:.2f}</span> ({s_data["pct"]:.2f}%)</div>', unsafe_allow_html=True)
 
-# 3. Base Hardcoded Ticker Pools
+# 3. Corrected Ticker Pools
 NIFTY_50_POOL = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
     "INFY.NS", "ITC.NS", "SBIN.NS", "HINDUNILVR.NS", "LT.NS", "HCLTECH.NS",
@@ -68,25 +68,25 @@ NIFTY_50_POOL = [
 
 EXPANDED_POOL = NIFTY_50_POOL + [
     "ZOMATO.NS", "SUZLON.NS", "JIOFIN.NS", "IREDA.NS", "RVNL.NS", "IRFC.NS", "BHEL.NS",
-    "GMRINFRA.NS", "IDEA.NS", "YESBANK.NS", "PNB.NS", "HUDCO.NS", "NBCC.NS", "SJVN.NS",
+    "GMRAIRPORT.NS", "IDEA.NS", "YESBANK.NS", "PNB.NS", "HUDCO.NS", "NBCC.NS", "SJVN.NS",
     "NHPC.NS", "OIL.NS", "HAL.NS", "TATAPOWER.NS", "ADANIPOWER.NS", "DELHIVERY.NS",
     "PAYTM.NS", "NYKAA.NS", "UNIONBANK.NS", "IOB.NS", "CUB.NS", "ZENTEC.NS",
     "TATAELXSI.NS", "KPITTECH.NS", "COFORGE.NS", "PERSISTENT.NS", "DIXON.NS",
     "POLYCAB.NS", "KEI.NS", "IRCTC.NS", "CONCOR.NS", "AMBUJACEM.NS", "ACC.NS",
-    "DLF.NS", "GODREJPROP.NS", "OBERREALTY.NS", "PFC.NS", "RECLTD.NS", "GAIL.NS",
+    "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PFC.NS", "RECLTD.NS", "GAIL.NS",
     "SAIL.NS", "NMDC.NS", "NATIONALUM.NS", "VEDL.NS", "HINDCOPPER.NS", "EXIDEIND.NS",
     "VOLTAS.NS", "BLUESTARCO.NS", "HAVELLS.NS", "CUMMINSIND.NS", "SIEMENS.NS",
-    "ABB.NS", "CGPOWER.NS", "BOB.NS", "CANBK.NS", "IDFCFIRSTB.NS", "FEDERALBNK.NS",
+    "ABB.NS", "CGPOWER.NS", "BANKBARODA.NS", "CANBK.NS", "IDFCFIRSTB.NS", "FEDERALBNK.NS",
     "BANDHANBNK.NS", "AUBANK.NS", "BIOCON.NS", "GLENMARK.NS", "LUPIN.NS", "AUROPHARMA.NS",
     "LAURUSLABS.NS", "DEEPAKNTR.NS", "SRF.NS", "TATACHEM.NS", "ASHOKLEY.NS",
     "BALRAMCHIN.NS", "BERGEPAINT.NS", "BHARATFORG.NS", "BOSCHLTD.NS", "CHAMBLFERT.NS",
     "COLPAL.NS", "COROMANDEL.NS", "CROMPTON.NS", "ESCORTS.NS", "FORTIS.NS",
-    "GNFC.NS", "GODREJCP.NS", "GRANULES.NS", "HINDPETRO.NS", "IBULHSGFIN.NS",
+    "GNFC.NS", "GODREJCP.NS", "GRANULES.NS", "HINDPETRO.NS", "SAMAMBA.NS",
     "INDIACEM.NS", "INDIAMART.NS", "INDIGO.NS", "IPCALAB.NS", "JINDALSTEL.NS",
     "JUBLFOOD.NS", "LICHSGFIN.NS", "M&MFIN.NS", "MANAPPURAM.NS", "MCX.NS",
     "METROPOLIS.NS", "MPHASIS.NS", "MRF.NS", "MUTHOOTFIN.NS", "NAVINFLUOR.NS",
-    "PEL.NS", "PETRONET.NS", "PIDILITIND.NS", "SUNTV.NS", "SYNGENE.NS",
-    "TATACOMM.NS", "TREN.NS", "TVSMOTOR.NS", "UBL.NS", "UPL.NS", "WHIRLPOOL.NS", "ZEEL.NS"
+    "PETRONET.NS", "PIDILITIND.NS", "SUNTV.NS", "SYNGENE.NS",
+    "TATACOMM.NS", "TRENT.NS", "TVSMOTOR.NS", "UBL.NS", "UPL.NS", "WHIRLPOOL.NS", "ZEEL.NS"
 ]
 
 # Watchlist Setup Menu
@@ -184,7 +184,6 @@ def run_broad_screener(tickers):
             is_inside_bar = (float(last_row['High']) < float(prev_row['High'])) and (float(last_row['Low']) > float(prev_row['Low']))
             chart_shape = "Inside Sqz" if is_inside_bar else ("Higher Lows" if is_higher_lows else "Normal")
             
-            # FIXED: Closed out dictionary elements and securely appended rows
             complete_matrix.append({
                 "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Vol Surge": vol_multiplier,
                 "Close Pos %": close_position_pct, "Pattern": setup_status, "Chart Shape": chart_shape,
