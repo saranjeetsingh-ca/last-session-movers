@@ -28,7 +28,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub'>Pure Technical Momentum Engine</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub'>Pure Technical Engine (Segfault-Protected Chunking)</p>", unsafe_allow_html=True)
 
 # --- PARAMETER GUIDELINES & WEIGHTAGE BLOCK ---
 with st.expander("📚 Technical Scoring Matrix & Guide"):
@@ -36,7 +36,7 @@ with st.expander("📚 Technical Scoring Matrix & Guide"):
     ### 🧮 Algorithmic Technical Score (100 Points Total)
     * **Close Position % (40 Points):** Points are awarded based on how close the stock closed to its absolute high of the day. A 100% close gets max points.
     * **Volume Surge (40 Points):** Points scale up as today's volume exceeds the 20-day average. Max points are awarded at a 2.0x volume multiplier.
-    * **Pattern / Shape Squeeze (20 Points):** 20 points for an *Inside Bar Squeeze* or *NR7* coil. 10 points for a *Higher Lows* trend. 5 points for a standard flat shape.
+    * **Pattern / Chart Shape (20 Points):** 20 points for an *Inside Bar Squeeze* or *NR7* coil. 10 points for a *Higher Lows* trend. 5 points for a standard flat shape.
 
     ### 📊 Column Definitions
     * **Vol Surge:** Today's volume divided by the 20-day average. Anything above 1.50x indicates strong institutional footprint.
@@ -52,7 +52,7 @@ session.headers.update({
 retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
 session.mount('https://', HTTPAdapter(max_retries=retries))
 
-# 2. Hardcoded Ticker Pools
+# 2. Hardcoded Core Ticker Pools
 NIFTY_50_POOL = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
     "INFY.NS", "ITC.NS", "SBIN.NS", "HINDUNILVR.NS", "LT.NS", "HCLTECH.NS",
@@ -101,68 +101,87 @@ if custom_scrip:
         selected_tickers.append(formatted_scrip)
         st.success(f"Successfully added {formatted_scrip} to active execution loop array.")
 
-st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running instantly via async chunk download.")
+st.caption(f"📊 Ready to scan: **{len(selected_tickers)} stocks** running in stable batches.")
 st.markdown("---")
 
 # Safe Core Pipeline Matrix Screener
 def run_broad_screener(tickers):
     complete_matrix = []
-    st.info("📡 Establishing secure connection. Fetching pure price-action data...")
-    try:
-        with st.spinner("Downloading technical chart data matrix safely..."):
-            all_data = yf.download(tickers, period="35d", interval="1d", group_by="ticker", threads=True, progress=False, session=session)
-    except Exception as e:
-        st.error("⚠️ Yahoo Finance network connection failed. Please retry.")
-        return pd.DataFrame()
-
-    if all_data.empty:
-        st.error("⚠️ Download returned an empty matrix. The server might be temporarily throttled.")
-        return pd.DataFrame()
-        
+    st.info("📡 Establishing secure connection. Fetching price-action data in stable batches...")
+    
+    # Split tickers into chunks of 20 to completely prevent C-Engine Memory Segfaults
+    chunk_size = 20
+    ticker_chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
+    
     progress_text = st.empty()
     progress_bar = st.progress(0)
     total_tickers = len(tickers)
+    processed_count = 0
     
-    for index, ticker in enumerate(tickers):
-        clean_name = ticker.replace(".NS", "")
-        percent_complete = int(((index + 1) / total_tickers) * 100)
-        progress_bar.progress(percent_complete)
-        progress_text.caption(f"🔄 Processing technical arrays: {clean_name} ({index + 1}/{total_tickers})")
-        
+    for chunk in ticker_chunks:
         try:
-            if ticker not in all_data.columns.get_level_values(0): continue
-            df = all_data[ticker].dropna()
-            if df.empty or len(df) < 22: continue
+            # Enforce threads=False to completely eliminate the segmentation fault risk
+            all_data = yf.download(
+                chunk, 
+                period="35d", 
+                interval="1d", 
+                group_by="ticker", 
+                threads=False, 
+                progress=False, 
+                session=session
+            )
+        except Exception as e:
+            continue # If a single batch fails, keep moving to protect the scan execution
+            
+        if all_data.empty:
+            continue
+            
+        for ticker in chunk:
+            processed_count += 1
+            clean_name = ticker.replace(".NS", "")
+            percent_complete = min(100, int((processed_count / total_tickers) * 100))
+            progress_bar.progress(percent_complete)
+            progress_text.caption(f"🔄 Processing technical arrays: {clean_name} ({processed_count}/{total_tickers})")
+            
+            try:
+                # Handle single vs multi-ticker dataframe structural outputs safely
+                if len(chunk) == 1:
+                    df = all_data.dropna()
+                else:
+                    if ticker not in all_data.columns.get_level_values(0): continue
+                    df = all_data[ticker].dropna()
+                    
+                if df.empty or len(df) < 22: continue
+                    
+                last_row = df.iloc[-1]
+                prev_row = df.iloc[-2]
+                prev_2_row = df.iloc[-3]
                 
-            last_row = df.iloc[-1]
-            prev_row = df.iloc[-2]
-            prev_2_row = df.iloc[-3]
-            
-            close_val = float(last_row['Close'])
-            high_val = float(last_row['High'])
-            low_val = float(last_row['Low'])
-            
-            avg_vol_20 = float(df.iloc[:-1]['Volume'].tail(20).mean())
-            candle_range = high_val - low_val
-            if candle_range == 0 or avg_vol_20 == 0: continue
+                close_val = float(last_row['Close'])
+                high_val = float(last_row['High'])
+                low_val = float(last_row['Low'])
                 
-            close_position_pct = ((close_val - low_val) / candle_range) * 100
-            vol_multiplier = float(last_row['Volume']) / avg_vol_20
+                avg_vol_20 = float(df.iloc[:-1]['Volume'].tail(20).mean())
+                candle_range = high_val - low_val
+                if candle_range == 0 or avg_vol_20 == 0: continue
+                    
+                close_position_pct = ((close_val - low_val) / candle_range) * 100
+                vol_multiplier = float(last_row['Volume']) / avg_vol_20
+                
+                is_nr7 = (high_val - low_val) == (df['High'] - df['Low']).tail(7).min()
+                setup_status = "⚡ NR7" if is_nr7 else "Normal"
+                
+                is_higher_lows = (float(last_row['Low']) > float(prev_row['Low'])) and (float(prev_row['Low']) > float(prev_2_row['Low']))
+                is_inside_bar = (float(last_row['High']) < float(prev_row['High'])) and (float(last_row['Low']) > float(prev_row['Low']))
+                chart_shape = "Inside Sqz" if is_inside_bar else ("Higher Lows" if is_higher_lows else "Normal")
+                
+                complete_matrix.append({
+                    "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Vol Surge": vol_multiplier,
+                    "Close Pos %": close_position_pct, "Pattern": setup_status, "Chart Shape": chart_shape,
+                    "RawClose": close_val, "IsNR7": is_nr7, "IsInside": is_inside_bar, "IsHL": is_higher_lows
+                })
+            except: continue
             
-            is_nr7 = (high_val - low_val) == (df['High'] - df['Low']).tail(7).min()
-            setup_status = "⚡ NR7" if is_nr7 else "Normal"
-            
-            is_higher_lows = (float(last_row['Low']) > float(prev_row['Low'])) and (float(prev_row['Low']) > float(prev_2_row['Low']))
-            is_inside_bar = (float(last_row['High']) < float(prev_row['High'])) and (float(last_row['Low']) > float(prev_row['Low']))
-            chart_shape = "Inside Sqz" if is_inside_bar else ("Higher Lows" if is_higher_lows else "Normal")
-            
-            complete_matrix.append({
-                "Symbol": clean_name, "Price": f"₹{close_val:.2f}", "Vol Surge": vol_multiplier,
-                "Close Pos %": close_position_pct, "Pattern": setup_status, "Chart Shape": chart_shape,
-                "RawClose": close_val, "IsNR7": is_nr7, "IsInside": is_inside_bar, "IsHL": is_higher_lows
-            })
-        except: continue
-        
     progress_bar.empty()
     progress_text.empty()
     return pd.DataFrame(complete_matrix)
