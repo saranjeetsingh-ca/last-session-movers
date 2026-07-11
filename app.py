@@ -178,9 +178,24 @@ if st.button("🚀 Load Custom Ranked Momentum Monitor"):
         sp_df = yf.download("^GSPC", period="2d", interval="1d", progress=False, multi_level_index=False)
         
         col1, col2 = st.columns(2)
-        if not nifty_df.empty:
-            n_pct = ((float(nifty_df.iloc[-1]['Close']) - float(nifty_df.iloc[-2]['Close'])) / float(nifty_df.iloc[-2]['Close'])) * 100
-            st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if n_pct >= 0 else "#FEE2E2"}; color: #065F46;">NIFTY 50: {float(nifty_df.iloc[-1]["Close"]):.2f} ({n_pct:.2f}%)</div>', unsafe_allow_html=True)
-        if not sp_df.empty:
-            s_pct = ((float(sp_df.iloc[-1]['Close']) - float(sp_df.iloc[-2]['Close'])) / float(sp_df.iloc[-2]['Close'])) * 100
-            st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if s_pct >= 0 else "#FEE2E2"}; color: #065F46;">US S&P 500: {float(
+        with col1:
+            if not nifty_df.empty and len(nifty_df) >= 2:
+                n_pct = ((float(nifty_df.iloc[-1]['Close']) - float(nifty_df.iloc[-2]['Close'])) / float(nifty_df.iloc[-2]['Close'])) * 100
+                st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if n_pct >= 0 else "#FEE2E2"}; color: #065F46;">NIFTY 50: {float(nifty_df.iloc[-1]["Close"]):.2f} ({n_pct:.2f}%)</div>', unsafe_allow_html=True)
+        with col2:
+            if not sp_df.empty and len(sp_df) >= 2:
+                s_pct = ((float(sp_df.iloc[-1]['Close']) - float(sp_df.iloc[-2]['Close'])) / float(sp_df.iloc[-2]['Close'])) * 100
+                st.markdown(f'<div class="global-card" style="background-color: {"#D1FAE5" if s_pct >= 0 else "#FEE2E2"}; color: #065F46;">US S&P 500: {float(sp_df.iloc[-1]["Close"]):.2f} ({s_pct:.2f}%)</div>', unsafe_allow_html=True)
+    except:
+        st.warning("📊 Global market cue widget skipped due to external server rate restrictions.")
+
+    raw_df = run_broad_screener(selected_tickers)
+    
+    if not raw_df.empty:
+        raw_df = raw_df.sort_values(by="Vol Surge", ascending=False)
+        
+        with st.spinner("Extracting Options Open Interest structures safely..."):
+            pcr_values = []
+            oi_signals = []
+            for _, row in raw_df.iterrows():
+                if
