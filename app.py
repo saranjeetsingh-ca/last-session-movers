@@ -31,6 +31,22 @@ st.markdown("""
 st.markdown("<h1>🏆 Institutional Alpha Ranker</h1>", unsafe_allow_html=True)
 st.markdown("<p class='sub'>Enterprise Network Engine (Segfault Protection Active)</p>", unsafe_allow_html=True)
 
+# --- NEW: PARAMETER GUIDELINES & WEIGHTAGE BLOCK ---
+with st.expander("📚 Scoring Weightage & Parameter Guide"):
+    st.markdown("""
+    ### 🧮 Algorithmic Scoring Matrix (100 Points Total)
+    * **Close Position % (30 Points):** Points are awarded based on how close the stock closed to its absolute high of the day. A 100% close gets max points.
+    * **Volume Surge (30 Points):** Points scale up as today's volume exceeds the 20-day average. Max points are awarded at a 2.0x volume multiplier.
+    * **Pattern / Shape Squeeze (20 Points):** 20 points for an *Inside Bar Squeeze* or *NR7* coil. 10 points for a *Higher Lows* trend. 5 points for a standard flat shape.
+    * **Options Sentiment Alignment (20 Points):** 20 points awarded if the Options Put-Call Ratio (PCR) perfectly supports the technical direction of the stock (e.g., Call Heavy on a breakout).
+
+    ### 📊 Column Definitions
+    * **Vol Surge:** Today's volume divided by the 20-day average. Anything above 1.50x indicates strong institutional footprint.
+    * **Close Pos %:** 100% means the stock closed exactly at the high of the day. 0% means it closed exactly at the low.
+    * **Chart Shape:** "Higher Lows" means buyers are stepping up early. "Inside Sqz" means the daily candle is completely engulfed by yesterday's range (a coiled spring).
+    * **PCR (Put-Call Ratio):** A ratio below 0.60 indicates a heavily Bullish (Call Heavy) options bias. A ratio above 1.15 indicates a Bearish (Put Heavy) bias.
+    """)
+
 # --- ENTERPRISE ANTI-RATE-LIMIT SESSION ---
 session = requests.Session()
 session.headers.update({
